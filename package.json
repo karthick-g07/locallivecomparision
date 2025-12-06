@@ -1,0 +1,26 @@
+{
+  "name": "dom-comparison-tool",
+  "version": "1.0.0",
+  "description": "DOM Comparison Tool using Playwright",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "kill-port": "./kill-port.sh",
+    "fresh-start": "./kill-port.sh && node server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "multer": "^1.4.5-lts.1",
+    "playwright": "^1.57.0",
+    "xlsx": "^0.18.5"
+  },
+  "keywords": [
+    "dom",
+    "comparison",
+    "playwright"
+  ],
+  "author": "",
+  "license": "MIT"
+}

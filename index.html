@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DOM Comparison Tool</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>DOM Comparison Tool</h1>
+            <p class="description">Compare DOM content between two URLs using Playwright</p>
+        </header>
+        
+        <!-- Tab Navigation -->
+        <div class="tab-navigation">
+            <button class="tab-btn active" data-tab="url-compare">URL Comparison</button>
+            <button class="tab-btn" data-tab="excel-compare">Excel Comparison</button>
+        </div>
+        
+        <!-- URL Comparison Tab -->
+        <div class="tab-content active" id="url-compare-tab">
+        <div class="url-inputs">
+            <div class="url-group live-url">
+                <h3>Live/Reference URL</h3>
+                <input type="text" class="url-input" id="liveUrl" placeholder="Enter live URL" value="https://www.zoho.com/in/payroll/">
+            </div>
+            <div class="url-group test-url">
+                <h3>Local/Test URL</h3>
+                <input type="text" class="url-input" id="testUrl" placeholder="Enter test URL" value="https://www.localzoho.com/en-sa/payroll/">
+            </div>
+        </div>
+        
+        <div class="actions">
+            <button class="btn btn-compare" id="compareBtn">Compare DOM</button>
+            <button class="btn btn-clear" id="clearBtn">Clear</button>
+        </div>
+        
+        <div class="loading" id="loading" style="display: none;">
+            <div class="spinner"></div>
+            <p>Fetching and comparing content with Playwright...</p>
+        </div>
+        
+        <div class="results-container" id="resultsContainer" style="display: none;">
+            <div class="summary" id="summary">
+                <div class="summary-item">
+                    <div class="summary-value" id="totalLines">0</div>
+                    <div class="summary-label">Total Lines</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-value" id="matchingLines">0</div>
+                    <div class="summary-label">Matching</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-value" id="differentLines">0</div>
+                    <div class="summary-label">Different</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-value" id="uniqueLive">0</div>
+                    <div class="summary-label">Only in Live</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-value" id="uniqueTest">0</div>
+                    <div class="summary-label">Only in Test</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-value" id="similarity">0%</div>
+                    <div class="summary-label">Similarity</div>
+                </div>
+            </div>
+            
+            <!-- Meta Tags Comparison -->
+            <div class="meta-comparison" id="metaComparison" style="display: none;">
+                <h3>Meta Tags Comparison</h3>
+                <div class="meta-comparison-grid">
+                    <div class="meta-item">
+                        <div class="meta-label">Title</div>
+                        <div class="meta-values">
+                            <div class="meta-value live-meta" id="metaTitleLive">
+                                <strong>Live:</strong> <span id="metaTitleLiveValue">-</span>
+                            </div>
+                            <div class="meta-value test-meta" id="metaTitleTest">
+                                <strong>Test:</strong> <span id="metaTitleTestValue">-</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="meta-item">
+                        <div class="meta-label">Description</div>
+                        <div class="meta-values">
+                            <div class="meta-value live-meta" id="metaDescLive">
+                                <strong>Live:</strong> <span id="metaDescLiveValue">-</span>
+                            </div>
+                            <div class="meta-value test-meta" id="metaDescTest">
+                                <strong>Test:</strong> <span id="metaDescTestValue">-</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="filter-buttons" id="filterButtons" style="display: none;">
+                <button class="filter-btn active" data-filter="all">All</button>
+                <button class="filter-btn" data-filter="match">Matching</button>
+                <button class="filter-btn" data-filter="only1">Only in Live</button>
+                <button class="filter-btn" data-filter="only2">Only in Test</button>
+            </div>
+            
+            <div class="results" id="results">
+                <div class="result-panel">
+                    <div class="panel-header">
+                        <span class="status-indicator status-live"></span>
+                        Live Site Content
+                    </div>
+                    <div class="panel-content" id="liveResults"></div>
+                </div>
+                <div class="result-panel">
+                    <div class="panel-header">
+                        <span class="status-indicator status-test"></span>
+                        Test Site Content
+                    </div>
+                    <div class="panel-content" id="testResults"></div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Modal for viewing node details -->
+        <div class="modal" id="nodeModal" style="display: none;">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Node Details</h2>
+                    <button class="modal-close" id="modalClose">&times;</button>
+                </div>
+                <div class="modal-body" id="modalBody">
+                    <div class="loading" id="modalLoading">
+                        <div class="spinner"></div>
+                        <p>Loading node details and screenshot...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="error-message" id="errorMessage" style="display: none;"></div>
+        </div>
+        
+        <!-- Excel Comparison Tab -->
+        <div class="tab-content" id="excel-compare-tab" style="display: none;">
+            <div class="excel-upload-section">
+                <div class="excel-upload-group single-sheet">
+                    <h3>📄 Excel File with URL Pairs</h3>
+                    <p class="upload-instructions">
+                        Upload an Excel file where:<br>
+                        <strong>Column A</strong> = Left/Reference URLs<br>
+                        <strong>Column B</strong> = Right/Local URLs
+                    </p>
+                    <div class="file-upload-area" id="excelUploadArea">
+                        <input type="file" id="excelFile" accept=".xlsx,.xls" style="display: none;">
+                        <div class="upload-placeholder">
+                            <p>📁 Click to upload Excel file</p>
+                            <p class="file-name" id="excelFileName">No file selected</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="excel-actions">
+                <button class="btn btn-compare" id="compareExcelBtn" disabled>Compare URLs</button>
+                <button class="btn btn-clear" id="clearExcelBtn">Clear</button>
+            </div>
+            
+            <div class="loading" id="excelLoading" style="display: none;">
+                <div class="spinner"></div>
+                <p>Parsing Excel files and comparing URLs...</p>
+            </div>
+            
+            <div class="excel-error-message" id="excelErrorMessage" style="display: none;"></div>
+            
+            <!-- Excel Comparison Dashboard -->
+            <div class="excel-dashboard" id="excelDashboard" style="display: none;">
+                <div class="dashboard-header">
+                    <h2>📊 Comparison Dashboard</h2>
+                    <div class="dashboard-stats">
+                        <div class="stat-item">
+                            <div class="stat-value" id="excelTotalUrls">0</div>
+                            <div class="stat-label">Total URLs</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="excelMatches">0</div>
+                            <div class="stat-label">Matches</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="excelOnlyLeft">0</div>
+                            <div class="stat-label">Only in Left</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="excelOnlyRight">0</div>
+                            <div class="stat-label">Only in Right</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="excelChanges">0</div>
+                            <div class="stat-label">Changes</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="dashboard-filters">
+                    <button class="dashboard-filter-btn active" data-filter="all" id="filterAllBtn" disabled>All</button>
+                    <button class="dashboard-filter-btn" data-filter="changes" id="filterChangesBtn" disabled>Changes Only</button>
+                </div>
+                
+                <div class="changes-list" id="changesList"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
