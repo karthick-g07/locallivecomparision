@@ -10,7 +10,7 @@
     <div class="container">
         <header>
             <h1>DOM Comparison Tool</h1>
-            <p class="description">Compare DOM content between two URLs using Playwright</p>
+            <p class="description">Compare full DOM structure (HTML elements, attributes, hierarchy) between two URLs using Playwright</p>
         </header>
         
         <!-- Tab Navigation -->
@@ -39,22 +39,22 @@
         
         <div class="loading" id="loading" style="display: none;">
             <div class="spinner"></div>
-            <p>Fetching and comparing content with Playwright...</p>
+            <p>Fetching and comparing DOM structure with Playwright...</p>
         </div>
         
         <div class="results-container" id="resultsContainer" style="display: none;">
             <div class="summary" id="summary">
                 <div class="summary-item">
                     <div class="summary-value" id="totalLines">0</div>
-                    <div class="summary-label">Total Lines</div>
+                    <div class="summary-label">Total DOM Elements</div>
                 </div>
                 <div class="summary-item">
                     <div class="summary-value" id="matchingLines">0</div>
-                    <div class="summary-label">Matching</div>
+                    <div class="summary-label">Matching Elements</div>
                 </div>
                 <div class="summary-item">
                     <div class="summary-value" id="differentLines">0</div>
-                    <div class="summary-label">Different</div>
+                    <div class="summary-label">Different Elements</div>
                 </div>
                 <div class="summary-item">
                     <div class="summary-value" id="uniqueLive">0</div>

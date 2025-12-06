@@ -297,13 +297,25 @@ document.addEventListener('DOMContentLoaded', function() {
             return lineDiv;
         }
 
-        lineDiv.className = `text-line ${status} clickable`;
+        lineDiv.className = `text-line ${status} clickable dom-line`;
         lineDiv.dataset.text = text;
         lineDiv.dataset.side = side;
         lineDiv.dataset.index = index;
         
-        // Truncate very long lines for display
-        const displayText = text.length > 200 ? text.substring(0, 200) + '...' : text;
+        // Format DOM structure lines - detect HTML tags
+        let displayText = text;
+        const isDOMLine = text.trim().startsWith('<') || text.includes('TEXT:');
+        
+        if (isDOMLine) {
+            // Escape HTML for display but preserve structure
+            displayText = escapeHtml(text);
+            // Highlight HTML tags
+            displayText = displayText.replace(/(&lt;\/?)([\w]+)([^&]*?)(&gt;)/g, 
+                '<span class="dom-tag">$1</span><span class="dom-tag-name">$2</span><span class="dom-attr">$3</span><span class="dom-tag">$4</span>');
+        } else {
+            // Truncate very long lines for display
+            displayText = displayText.length > 200 ? displayText.substring(0, 200) + '...' : displayText;
+        }
         
         const lineContent = document.createElement('div');
         lineContent.style.display = 'flex';
@@ -316,8 +328,14 @@ document.addEventListener('DOMContentLoaded', function() {
         
         const lineText = document.createElement('span');
         lineText.className = 'line-text';
-        lineText.textContent = displayText;
+        if (isDOMLine) {
+            lineText.innerHTML = displayText;
+        } else {
+            lineText.textContent = displayText;
+        }
         lineText.style.flex = '1';
+        lineText.style.fontFamily = isDOMLine ? 'monospace' : 'inherit';
+        lineText.style.fontSize = isDOMLine ? '12px' : 'inherit';
         
         lineContent.appendChild(lineNumber);
         lineContent.appendChild(lineText);
@@ -868,25 +886,39 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     clearExcelBtn.addEventListener('click', function() {
+        excelFile.value = '';
+        excelFileName.textContent = 'No file selected';
+        excelUploadArea.classList.remove('has-file');
+        excelDashboard.style.display = 'none';
+        excelErrorMessage.style.display = 'none';
+        compareExcelBtn.disabled = true;
+        excelResults = [];
+        excelStats = null;
+        
+        // Disable filter buttons
+        const filterAllBtn = document.getElementById('filterAllBtn');
+        const filterChangesBtn = document.getElementById('filterChangesBtn');
+        if (filterAllBtn) filterAllBtn.disabled = true;
+        if (filterChangesBtn) filterChangesBtn.disabled = true;
+    });
+    
+    // ========== EXCEL DASHBOARD ==========
+    let excelComparisonData = null;
+    let currentExcelFilter = 'all';
+    
+    // Use event delegation for filter buttons (works even if buttons are added dynamically)
     document.addEventListener('click', function(e) {
         const filterBtn = e.target.closest('.dashboard-filter-btn');
         if (filterBtn && !filterBtn.disabled) {
             e.preventDefault();
             e.stopPropagation();
-            document.querySelectorAll('.change-card').forEach(card => {
-    const domInfo = card.querySelector('.dom-info');
-    if (!domInfo) return;
-
-    const text = domInfo.innerText.trim();
-
-    // Check if it contains "Changes: 0 lines"
-    if (/Changes:\s*0 lines/i.test(text)) {
-        console.log("Removing card with 0 changes:", card);
-        card.remove();
-    }
-});
-
-
+            
+            const allFilters = document.querySelectorAll('.dashboard-filter-btn');
+            allFilters.forEach(b => b.classList.remove('active'));
+            filterBtn.classList.add('active');
+            currentExcelFilter = filterBtn.dataset.filter || 'all';
+            
+            renderChangesList();
         }
     });
     

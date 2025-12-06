@@ -414,6 +414,43 @@ h1 {
     flex: 1;
 }
 
+/* DOM Structure Styling */
+.dom-line {
+    background-color: #f8f9fa;
+}
+
+.dom-line .line-text {
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    line-height: 1.6;
+}
+
+.dom-tag {
+    color: #d73a49;
+    font-weight: bold;
+}
+
+.dom-tag-name {
+    color: #005cc5;
+    font-weight: bold;
+}
+
+.dom-attr {
+    color: #6a737d;
+}
+
+.dom-line.match {
+    background-color: #d5f4e6;
+}
+
+.dom-line.only1 {
+    background-color: #ffebee;
+}
+
+.dom-line.only2 {
+    background-color: #e3f2fd;
+}
+
 .view-more-btn {
     padding: 4px 12px;
     background-color: #3498db;
