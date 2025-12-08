@@ -30,6 +30,38 @@ document.addEventListener('DOMContentLoaded', function() {
     const tabButtons = document.querySelectorAll('.tab-btn');
     const tabContents = document.querySelectorAll('.tab-content');
     
+    // Tab switching functionality
+    tabButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const targetTab = this.dataset.tab;
+            
+            // Remove active class from all buttons
+            tabButtons.forEach(btn => btn.classList.remove('active'));
+            
+            // Hide all tab contents
+            tabContents.forEach(content => {
+                content.classList.remove('active');
+                content.style.display = 'none';
+            });
+            
+            // Add active class to clicked button
+            this.classList.add('active');
+            
+            // Show corresponding tab content
+            const targetContent = document.getElementById(targetTab + '-tab');
+            if (targetContent) {
+                targetContent.classList.add('active');
+                targetContent.style.display = 'block';
+            }
+        });
+    });
+    
+    // Initialize: Hide Excel tab by default
+    const excelTab = document.getElementById('excel-compare-tab');
+    if (excelTab) {
+        excelTab.style.display = 'none';
+    }
+    
     // Summary elements
     const totalLines = document.getElementById('totalLines');
     const matchingLines = document.getElementById('matchingLines');
@@ -571,29 +603,6 @@ document.addEventListener('DOMContentLoaded', function() {
         errorMessage.style.display = 'none';
     }
     
-    // ========== TAB NAVIGATION ==========
-    tabButtons.forEach(btn => {
-        btn.addEventListener('click', function() {
-            const targetTab = this.dataset.tab;
-            
-            // Update tab buttons
-            tabButtons.forEach(b => b.classList.remove('active'));
-            this.classList.add('active');
-            
-            // Update tab contents
-            tabContents.forEach(content => {
-                content.classList.remove('active');
-                content.style.display = 'none';
-            });
-            
-            const targetContent = document.getElementById(targetTab + '-tab');
-            if (targetContent) {
-                targetContent.classList.add('active');
-                targetContent.style.display = 'block';
-            }
-        });
-    });
-    
     // ========== EXCEL FILE UPLOAD ==========
     excelUploadArea.addEventListener('click', () => excelFile.click());
     
@@ -610,6 +619,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // ========== EXCEL COMPARISON ==========
     let excelResults = [];
     let excelStats = null;
+    let currentExcelFilter = 'all';
     
     compareExcelBtn.addEventListener('click', async function() {
         const formData = new FormData();
@@ -868,25 +878,37 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     clearExcelBtn.addEventListener('click', function() {
+        excelFile.value = '';
+        excelFileName.textContent = 'No file selected';
+        excelUploadArea.classList.remove('has-file');
+        excelDashboard.style.display = 'none';
+        excelErrorMessage.style.display = 'none';
+        compareExcelBtn.disabled = true;
+        excelResults = [];
+        excelStats = null;
+        changesList.innerHTML = '';
+        
+        // Disable filter buttons
+        const filterAllBtn = document.getElementById('filterAllBtn');
+        const filterChangesBtn = document.getElementById('filterChangesBtn');
+        if (filterAllBtn) filterAllBtn.disabled = true;
+        if (filterChangesBtn) filterChangesBtn.disabled = true;
+    });
+    
+    // ========== EXCEL DASHBOARD FILTERS ==========
+    // Use event delegation for filter buttons (works even if buttons are added dynamically)
     document.addEventListener('click', function(e) {
         const filterBtn = e.target.closest('.dashboard-filter-btn');
         if (filterBtn && !filterBtn.disabled) {
             e.preventDefault();
             e.stopPropagation();
-            document.querySelectorAll('.change-card').forEach(card => {
-    const domInfo = card.querySelector('.dom-info');
-    if (!domInfo) return;
-
-    const text = domInfo.innerText.trim();
-
-    // Check if it contains "Changes: 0 lines"
-    if (/Changes:\s*0 lines/i.test(text)) {
-        console.log("Removing card with 0 changes:", card);
-        card.remove();
-    }
-});
-
-
+            
+            const allFilters = document.querySelectorAll('.dashboard-filter-btn');
+            allFilters.forEach(b => b.classList.remove('active'));
+            filterBtn.classList.add('active');
+            currentExcelFilter = filterBtn.dataset.filter || 'all';
+            
+            renderChangesList();
         }
     });
     
