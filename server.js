@@ -104,7 +104,7 @@ async function extractPageContent(browser, url, includeNodeData = false) {
         await page.waitForTimeout(500);
 
         const result = await page.evaluate((includeNodeData) => {
-            // Extract meta tags and title BEFORE removing head elements
+            // Extract meta tags and title BEFORE processing
             const metaDescription = document.querySelector('meta[name="description"]')?.getAttribute('content') || 
                                    document.querySelector('meta[property="og:description"]')?.getAttribute('content') || 
                                    '';
@@ -112,74 +112,140 @@ async function extractPageContent(browser, url, includeNodeData = false) {
                              document.querySelector('meta[property="og:title"]')?.getAttribute('content') || 
                              '';
             
-            // remove elements that typically don't contribute to visible textual content
-            const selectors = ['script', 'style', 'noscript', 'iframe', 'head', 'meta', 'link'];
-            document.querySelectorAll(selectors.join(',')).forEach(n => n.remove());
-
-            // remove hidden nodes
-            document.querySelectorAll('[hidden]').forEach(n => n.remove());
-
-            // gather visible text nodes
+            // Clone the document to avoid modifying the original
+            const clone = document.cloneNode(true);
+            
+            // Remove elements that don't contribute to DOM structure comparison
+            // Keep script/style for structure but we'll normalize them
+            const selectorsToRemove = ['noscript'];
+            selectorsToRemove.forEach(selector => {
+                clone.querySelectorAll(selector).forEach(n => n.remove());
+            });
+            
+            // Function to normalize DOM structure for comparison
+            function normalizeElement(element) {
+                if (!element || element.nodeType !== 1) return null;
+                
+                // Get tag name
+                const tagName = element.tagName.toLowerCase();
+                
+                // Get attributes (sorted for consistency)
+                const attrs = {};
+                if (element.attributes) {
+                    for (let i = 0; i < element.attributes.length; i++) {
+                        const attr = element.attributes[i];
+                        // Skip data attributes that change dynamically, skip style attributes
+                        if (attr.name.startsWith('data-') && !attr.name.startsWith('data-pw-')) continue;
+                        if (attr.name === 'style') continue;
+                        if (attr.name === 'class') {
+                            // Normalize class: sort and remove empty
+                            const classes = attr.value.split(/\s+/).filter(c => c.trim()).sort().join(' ');
+                            if (classes) attrs[attr.name] = classes;
+                        } else {
+                            attrs[attr.name] = attr.value;
+                        }
+                    }
+                }
+                
+                // Get children (normalized)
+                const children = [];
+                for (let child of element.childNodes) {
+                    if (child.nodeType === 1) { // Element node
+                        const normalized = normalizeElement(child);
+                        if (normalized) children.push(normalized);
+                    } else if (child.nodeType === 3) { // Text node
+                        const text = child.textContent.trim();
+                        if (text) children.push({ type: 'text', content: text });
+                    }
+                }
+                
+                return {
+                    tag: tagName,
+                    attrs: attrs,
+                    children: children
+                };
+            }
+            
+            // Function to serialize DOM structure to string for comparison
+            function serializeDOM(element, depth = 0) {
+                if (!element) return '';
+                
+                const indent = '  '.repeat(depth);
+                let result = '';
+                
+                if (element.type === 'text') {
+                    return `${indent}TEXT: ${element.content}\n`;
+                }
+                
+                // Tag and attributes
+                const attrsStr = Object.keys(element.attrs)
+                    .sort()
+                    .map(key => `${key}="${element.attrs[key]}"`)
+                    .join(' ');
+                
+                result += `${indent}<${element.tag}${attrsStr ? ' ' + attrsStr : ''}>\n`;
+                
+                // Children
+                element.children.forEach(child => {
+                    result += serializeDOM(child, depth + 1);
+                });
+                
+                result += `${indent}</${element.tag}>\n`;
+                
+                return result;
+            }
+            
+            // Normalize the body structure
+            const bodyElement = clone.body;
+            const normalizedDOM = normalizeElement(bodyElement);
+            
+            // Serialize to string for line-by-line comparison
+            const domString = serializeDOM(normalizedDOM);
+            const domLines = domString.split('\n').filter(line => line.trim().length > 0);
+            
+            // Also extract text content for backward compatibility and node data
+            const textLines = [];
+            const nodeData = new Map();
+            
+            if (includeNodeData) {
             const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
                 acceptNode(node) {
                     if (!node.nodeValue || !node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
-                    let el = node.parentElement;
-                    while (el && el !== document.body) {
-                        const style = window.getComputedStyle(el);
-                        if (style && (style.display === 'none' || style.visibility === 'hidden' || parseFloat(style.opacity || '1') === 0)) {
-                            return NodeFilter.FILTER_REJECT;
-                        }
-                        el = el.parentElement;
+                        return NodeFilter.FILTER_ACCEPT;
                     }
-                    return NodeFilter.FILTER_ACCEPT;
-                }
-            });
-
-            const out = [];
-            const nodeData = new Map();
-            let node;
-            while (node = walker.nextNode()) {
-                const text = node.nodeValue.replace(/\s+/g, ' ').trim();
-                if (text.length > 2) {
-                    out.push(text);
-                    if (includeNodeData && node.parentElement) {
-                        const parent = node.parentElement;
-                        const rect = parent.getBoundingClientRect();
-                        const computedStyle = window.getComputedStyle(parent);
-                        nodeData.set(text, {
-                            tagName: parent.tagName,
-                            className: parent.className,
-                            id: parent.id,
-                            xpath: getXPath(parent),
-                            rect: {
-                                x: rect.x,
-                                y: rect.y,
-                                width: rect.width,
-                                height: rect.height
-                            },
-                            styles: {
-                                backgroundColor: computedStyle.backgroundColor,
-                                color: computedStyle.color,
-                                fontSize: computedStyle.fontSize,
-                                fontFamily: computedStyle.fontFamily
-                            }
-                        });
+                });
+                
+                let node;
+                while (node = walker.nextNode()) {
+                    if (node.parentElement) {
+                        const text = node.nodeValue.replace(/\s+/g, ' ').trim();
+                        if (text.length > 2) {
+                            textLines.push(text);
+                            const parent = node.parentElement;
+                            const rect = parent.getBoundingClientRect();
+                            const computedStyle = window.getComputedStyle(parent);
+                            nodeData.set(text, {
+                                tagName: parent.tagName,
+                                className: parent.className,
+                                id: parent.id,
+                                xpath: getXPath(parent),
+                                rect: {
+                                    x: rect.x,
+                                    y: rect.y,
+                                    width: rect.width,
+                                    height: rect.height
+                                },
+                                styles: {
+                                    backgroundColor: computedStyle.backgroundColor,
+                                    color: computedStyle.color,
+                                    fontSize: computedStyle.fontSize,
+                                    fontFamily: computedStyle.fontFamily
+                                }
+                            });
+                        }
                     }
                 }
             }
-            // dedupe but preserve order
-            const seen = new Set();
-            const uniqueLines = out.filter(t => { if (seen.has(t)) return false; seen.add(t); return true; });
-            
-            const baseResult = {
-                lines: uniqueLines,
-                meta: {
-                    title: metaTitle.trim(),
-                    description: metaDescription.trim()
-                }
-            };
-            
-            return includeNodeData ? { ...baseResult, nodeData: Object.fromEntries(nodeData) } : baseResult;
             
             function getXPath(element) {
                 if (element.id !== '') {
@@ -200,15 +266,36 @@ async function extractPageContent(browser, url, includeNodeData = false) {
                     }
                 }
             }
+            
+            return {
+                domLines: domLines,
+                domStructure: normalizedDOM,
+                textLines: textLines,
+                nodeData: includeNodeData ? Object.fromEntries(nodeData) : null,
+                meta: {
+                    title: metaTitle.trim(),
+                    description: metaDescription.trim()
+                }
+            };
         }, includeNodeData);
 
-        const lines = result.lines || [];
+        const domLines = result.domLines || [];
+        const domStructure = result.domStructure || null;
+        const textLines = result.textLines || [];
         const nodeData = includeNodeData ? result.nodeData : null;
         const meta = result.meta || { title: '', description: '' };
 
         await page.close();
         await context.close();
-        return { success: true, url, lines, nodeData, meta };
+        return { 
+            success: true, 
+            url, 
+            lines: domLines, // Use DOM lines for comparison
+            domStructure: domStructure,
+            textLines: textLines, // Keep for backward compatibility
+            nodeData, 
+            meta 
+        };
     } catch (err) {
         const errorMessage = err.message || String(err);
         console.error(`Error extracting content from ${url}:`, errorMessage);
@@ -219,21 +306,39 @@ async function extractPageContent(browser, url, includeNodeData = false) {
 }
 
 function buildComparison(lines1 = [], lines2 = [], meta1 = {}, meta2 = {}) {
-    // Build union of unique lines while preserving first-seen order
+    // DOM structure comparison - compare line by line
+    // Build union of unique DOM lines while preserving order
     const union = [];
     const seen = new Set();
-    for (const l of lines1) { if (!seen.has(l)) { union.push(l); seen.add(l); } }
-    for (const l of lines2) { if (!seen.has(l)) { union.push(l); seen.add(l); } }
+    
+    // Add all lines from both, preserving order
+    for (const l of lines1) { 
+        const key = l.trim();
+        if (!seen.has(key)) { 
+            union.push(key); 
+            seen.add(key); 
+        } 
+    }
+    for (const l of lines2) { 
+        const key = l.trim();
+        if (!seen.has(key)) { 
+            union.push(key); 
+            seen.add(key); 
+        } 
+    }
 
-    const comparison = union.map((text, idx) => {
-        const in1 = lines1.indexOf(text) !== -1;
-        const in2 = lines2.indexOf(text) !== -1;
+    // Compare each line
+    const comparison = union.map((line, idx) => {
+        const normalizedLine = line.trim();
+        const in1 = lines1.some(l => l.trim() === normalizedLine);
+        const in2 = lines2.some(l => l.trim() === normalizedLine);
         const status = in1 && in2 ? 'match' : in1 ? 'only1' : 'only2';
         return {
             index: idx,
-            line1: in1 ? text : null,
-            line2: in2 ? text : null,
-            status
+            line1: in1 ? line : null,
+            line2: in2 ? line : null,
+            status,
+            isDOM: true // Mark as DOM comparison
         };
     });
 
